@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Upload, Download, FileText, Loader2, Sparkles, Check, ArrowRight, Zap, Shield, Clock } from 'lucide-react';
+import { Upload, Download, FileText, Loader2, Sparkles, Check, ArrowRight, Zap, Shield } from 'lucide-react';
 
 export default function PremiumDocumentConverter() {
   const [file, setFile] = useState<File | null>(null);
