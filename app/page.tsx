@@ -11,9 +11,10 @@ export default function PremiumDocumentConverter() {
   const [error, setError] = useState<string>('');
   const [dragActive, setDragActive] = useState(false);
   const [conversionProgress, setConversionProgress] = useState(0);
+  const [convertedFileName, setConvertedFileName] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Simulate conversion progress
+  // Progress simulation for better UX
   useEffect(() => {
     if (converting) {
       const interval = setInterval(() => {
@@ -22,9 +23,9 @@ export default function PremiumDocumentConverter() {
             clearInterval(interval);
             return 90;
           }
-          return prev + Math.random() * 15;
+          return prev + Math.random() * 10;
         });
-      }, 200);
+      }, 300);
       return () => clearInterval(interval);
     }
   }, [converting]);
@@ -32,11 +33,29 @@ export default function PremiumDocumentConverter() {
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
     if (selectedFile) {
-      setFile(selectedFile);
-      setError('');
-      setDownloadUrl('');
-      setConversionProgress(0);
+      validateAndSetFile(selectedFile);
     }
+  };
+
+  const validateAndSetFile = (selectedFile: File) => {
+    // Reset states
+    setError('');
+    setDownloadUrl('');
+    setConversionProgress(0);
+    
+    // Validate file type
+    if (selectedFile.type !== 'application/pdf') {
+      setError('Please select a PDF file only.');
+      return;
+    }
+    
+    // Validate file size (limit to 10MB)
+    if (selectedFile.size > 10 * 1024 * 1024) {
+      setError('File size must be less than 10MB.');
+      return;
+    }
+    
+    setFile(selectedFile);
   };
 
   const handleDrop = (e: React.DragEvent) => {
@@ -44,10 +63,7 @@ export default function PremiumDocumentConverter() {
     setDragActive(false);
     const droppedFile = e.dataTransfer.files[0];
     if (droppedFile) {
-      setFile(droppedFile);
-      setError('');
-      setDownloadUrl('');
-      setConversionProgress(0);
+      validateAndSetFile(droppedFile);
     }
   };
 
@@ -67,16 +83,42 @@ export default function PremiumDocumentConverter() {
     setError('');
     setConversionProgress(0);
 
-    // Simulate API call with realistic timing
-    setTimeout(() => {
+    try {
+      // Create FormData to send file
+      const formData = new FormData();
+      formData.append('file', file);
+
+      // Make API call to backend
+      const response = await fetch('/api/convert', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Server error: ${response.status}`);
+      }
+
+      // Get the converted file as blob
+      const blob = await response.blob();
+      
+      // Create download URL
+      const url = URL.createObjectURL(blob);
+      setDownloadUrl(url);
+      
+      // Set converted filename
+      const originalName = file.name.replace('.pdf', '');
+      setConvertedFileName(`${originalName}.pptx`);
+      
+      // Complete the progress
       setConversionProgress(100);
-      setTimeout(() => {
-        const blob = new Blob(['Mock DOCX content'], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
-        const url = URL.createObjectURL(blob);
-        setDownloadUrl(url);
-        setConverting(false);
-      }, 500);
-    }, 2000);
+      
+    } catch (err) {
+      console.error('Conversion error:', err);
+      setError(err instanceof Error ? err.message : 'An error occurred during conversion. Please try again.');
+    } finally {
+      setConverting(false);
+    }
   };
 
   const resetConverter = () => {
@@ -84,6 +126,13 @@ export default function PremiumDocumentConverter() {
     setDownloadUrl('');
     setError('');
     setConversionProgress(0);
+    setConvertedFileName('');
+    
+    // Clean up the blob URL to prevent memory leaks
+    if (downloadUrl) {
+      URL.revokeObjectURL(downloadUrl);
+    }
+    
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -154,7 +203,7 @@ export default function PremiumDocumentConverter() {
             transition={{ delay: 0.2, type: "spring" }}
           >
             <Sparkles className="w-4 h-4" />
-            Premium Document Converter
+            Premium Presentation Converter
           </motion.div>
           
           <motion.h1
@@ -166,10 +215,10 @@ export default function PremiumDocumentConverter() {
             Transform Your
             <br />
             <span className="relative">
-              Documents
+              Presentations
               <motion.div
                 className="absolute -bottom-2 left-0 right-0 h-1 bg-gradient-to-r from-emerald-400 to-teal-400 rounded-full"
-                initial={{ scaleX: 0 }}
+initial={{ scaleX: 0 }}
                 animate={{ scaleX: 1 }}
                 transition={{ delay: 1, duration: 0.8 }}
               />
@@ -182,7 +231,7 @@ export default function PremiumDocumentConverter() {
             animate={{ opacity: 1 }}
             transition={{ delay: 0.5 }}
           >
-            Experience the most advanced PDF to DOCX conversion with stunning speed, 
+            Experience the most advanced PDF to PPTX conversion with stunning speed, 
             unmatched quality, and enterprise-grade security.
           </motion.p>
 
@@ -258,7 +307,8 @@ export default function PremiumDocumentConverter() {
                       <h3 className="text-2xl font-bold text-gray-800 mb-3">
                         Drop your PDF here
                       </h3>
-                      <p className="text-gray-500 mb-6">or click to browse your files</p>
+                      <p className="text-gray-500 mb-2">or click to browse your files</p>
+                      <p className="text-sm text-gray-400 mb-6">Maximum file size: 10MB</p>
                       <motion.label
                         htmlFor="file-upload"
                         className="inline-flex items-center gap-3 bg-gradient-to-r from-emerald-600 to-teal-600 text-white px-8 py-4 rounded-xl font-semibold cursor-pointer shadow-lg hover:shadow-xl transition-all duration-300"
@@ -300,6 +350,7 @@ export default function PremiumDocumentConverter() {
                         onClick={resetConverter}
                         className="text-emerald-600 hover:text-emerald-800 font-semibold flex items-center gap-2 mx-auto"
                         whileHover={{ scale: 1.05 }}
+                        disabled={converting}
                       >
                         Choose Different File
                         <ArrowRight className="w-4 h-4" />
@@ -334,7 +385,7 @@ export default function PremiumDocumentConverter() {
                         ) : (
                           <>
                             <Zap className="w-6 h-6" />
-                            Convert to DOCX
+                            Convert to PPTX
                             <Sparkles className="w-5 h-5" />
                           </>
                         )}
@@ -379,20 +430,23 @@ export default function PremiumDocumentConverter() {
                       <h3 className="text-3xl font-bold text-gray-800 mb-3">
                         Conversion Complete! 🎉
                       </h3>
-                      <p className="text-gray-600 mb-8">
-                        Your document has been successfully converted with premium quality
+                      <p className="text-gray-600 mb-2">
+                        Your presentation has been successfully converted with premium quality
+                      </p>
+                      <p className="text-sm text-gray-500 mb-8">
+                        File: {convertedFileName}
                       </p>
                       
                       <div className="flex flex-col sm:flex-row gap-4 justify-center">
                         <motion.a
                           href={downloadUrl}
-                          download={`${file?.name?.replace('.pdf', '')}.docx`}
+                          download={convertedFileName}
                           className="inline-flex items-center gap-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white px-8 py-4 rounded-xl font-bold text-lg shadow-lg hover:shadow-xl transition-all duration-300"
                           whileHover={{ scale: 1.05, y: -2 }}
                           whileTap={{ scale: 0.95 }}
                         >
                           <Download className="w-6 h-6" />
-                          Download DOCX
+                          Download PPTX
                         </motion.a>
                         
                         <motion.button
@@ -419,7 +473,10 @@ export default function PremiumDocumentConverter() {
                     exit={{ opacity: 0, x: 20 }}
                     className="mt-6 p-6 bg-red-50 border-l-4 border-red-400 rounded-lg"
                   >
-                    <p className="text-red-700 font-semibold">{error}</p>
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 bg-red-400 rounded-full flex-shrink-0" />
+                      <p className="text-red-700 font-semibold">{error}</p>
+                    </div>
                   </motion.div>
                 )}
               </AnimatePresence>
